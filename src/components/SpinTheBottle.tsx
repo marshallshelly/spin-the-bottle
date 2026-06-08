@@ -1,16 +1,16 @@
 "use client";
 
-import React, {
+import {
   useState,
   useRef,
   useCallback,
   useEffect,
   useId,
+  type KeyboardEvent,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -24,34 +24,45 @@ import { Plus, Trash2, RotateCcw, Users, Sparkles } from "lucide-react";
 interface Player {
   id: string;
   name: string;
-  color: string;       // avatar background (dark fills, so lime text works)
+  color: string; // avatar background (dark fills, so lime text works)
   accentColor: string; // softer tint for backgrounds
   spins: number;
 }
 
 /* ───────── Constants ───────── */
 // Deep fills so Electric Lime text stays readable (as per Statamic rules)
-const PLAYER_PALETTE: { color: string; accent: string }[] = [
-  { color: "#4c305a", accent: "#f5ddee" },  // plum / blossom
-  { color: "#191a1b", accent: "#d7e5fe" },  // ink  / lilac
-  { color: "#3f3f46", accent: "#fdf1ef" },  // iron / warm-shell
-  { color: "#5e5a5a", accent: "#cbd5e0" },  // smoke / mist
-  { color: "#4e5154", accent: "#cbc2ea" },  // graphite / lavender
-  { color: "#334155", accent: "#d7e5fe" },  // slate / lilac
-  { color: "#3d2b1f", accent: "#fdf1ef" },  // dark brown / warm
-  { color: "#1e3a5f", accent: "#d7e5fe" },  // deep navy / lilac
+const PLAYER_PALETTE: { color: string; accentColor: string }[] = [
+  { color: "#4c305a", accentColor: "#f5ddee" }, // plum / blossom
+  { color: "#191a1b", accentColor: "#d7e5fe" }, // ink  / lilac
+  { color: "#3f3f46", accentColor: "#fdf1ef" }, // iron / warm-shell
+  { color: "#5e5a5a", accentColor: "#cbd5e0" }, // smoke / mist
+  { color: "#4e5154", accentColor: "#cbc2ea" }, // graphite / lavender
+  { color: "#334155", accentColor: "#d7e5fe" }, // slate / lilac
+  { color: "#3d2b1f", accentColor: "#fdf1ef" }, // dark brown / warm
+  { color: "#1e3a5f", accentColor: "#d7e5fe" }, // deep navy / lilac
 ];
 
 const CONFETTI_COLORS = [
-  "#d4ff4c", "#cbc2ea", "#f5ddee", "#d7e5fe",
-  "#beb9b3", "#4c305a", "#191a1b", "#fdf1ef",
+  "#d4ff4c",
+  "#cbc2ea",
+  "#f5ddee",
+  "#d7e5fe",
+  "#beb9b3",
+  "#4c305a",
+  "#191a1b",
+  "#fdf1ef",
 ];
 
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
 
 const getInitials = (name: string) =>
-  name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+  name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
 /* ───────── BottleSVG — warm amber editorial bottle ───────── */
 function BottleSVG({
@@ -69,45 +80,48 @@ function BottleSVG({
         rotate: `${rotation}deg`,
         transformOrigin: "50% 50%",
         transformBox: "fill-box",
-        transition: isSpinning ? "none" : "rotate 0.5s cubic-bezier(0.22,1,0.36,1)",
+        transition: isSpinning
+          ? "none"
+          : "rotate 0.5s cubic-bezier(0.22,1,0.36,1)",
         width: "100%",
         height: "100%",
-        filter: "drop-shadow(0px 12px 28px rgba(76,48,90,0.22)) drop-shadow(0px 2px 4px rgba(0,0,0,0.12))",
+        filter:
+          "drop-shadow(0px 12px 28px rgba(76,48,90,0.22)) drop-shadow(0px 2px 4px rgba(0,0,0,0.12))",
       }}
     >
       <defs>
         {/* Warm amber-brown bottle body */}
         <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#5c3a1e" />
-          <stop offset="28%"  stopColor="#8b5e3c" />
-          <stop offset="55%"  stopColor="#a0714f" />
-          <stop offset="78%"  stopColor="#8b5e3c" />
+          <stop offset="0%" stopColor="#5c3a1e" />
+          <stop offset="28%" stopColor="#8b5e3c" />
+          <stop offset="55%" stopColor="#a0714f" />
+          <stop offset="78%" stopColor="#8b5e3c" />
           <stop offset="100%" stopColor="#4a2e12" />
         </linearGradient>
         <linearGradient id="neckGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#4a2e12" />
-          <stop offset="45%"  stopColor="#7a4f30" />
+          <stop offset="0%" stopColor="#4a2e12" />
+          <stop offset="45%" stopColor="#7a4f30" />
           <stop offset="100%" stopColor="#3d2510" />
         </linearGradient>
         {/* Glass sheen */}
         <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="white" stopOpacity="0.22" />
+          <stop offset="0%" stopColor="white" stopOpacity="0.22" />
           <stop offset="100%" stopColor="white" stopOpacity="0.03" />
         </linearGradient>
         {/* Warm label background */}
         <linearGradient id="labelBg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#fdf1ef" stopOpacity="0.95" />
+          <stop offset="0%" stopColor="#fdf1ef" stopOpacity="0.95" />
           <stop offset="100%" stopColor="#f5ddee" stopOpacity="0.92" />
         </linearGradient>
         {/* Foil cap */}
         <linearGradient id="capGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#c8b89a" />
-          <stop offset="50%"  stopColor="#e8d5b7" />
+          <stop offset="0%" stopColor="#c8b89a" />
+          <stop offset="50%" stopColor="#e8d5b7" />
           <stop offset="100%" stopColor="#b8a88a" />
         </linearGradient>
         {/* Bottom plum glow */}
         <radialGradient id="baseGlow" cx="50%" cy="90%" r="55%">
-          <stop offset="0%"   stopColor="rgba(76,48,90,0.25)" />
+          <stop offset="0%" stopColor="rgba(76,48,90,0.25)" />
           <stop offset="100%" stopColor="transparent" />
         </radialGradient>
       </defs>
@@ -135,25 +149,96 @@ function BottleSVG({
       {/* Cork tip */}
       <rect x="35" y="19" width="30" height="13" rx="3" fill="#c8b89a" />
       {/* Capsule ridge lines */}
-      <line x1="33" y1="33" x2="67" y2="33" stroke="#b8a070" strokeWidth="0.8" opacity="0.5" />
-      <line x1="33" y1="37" x2="67" y2="37" stroke="#b8a070" strokeWidth="0.5" opacity="0.3" />
+      <line
+        x1="33"
+        y1="33"
+        x2="67"
+        y2="33"
+        stroke="#b8a070"
+        strokeWidth="0.8"
+        opacity="0.5"
+      />
+      <line
+        x1="33"
+        y1="37"
+        x2="67"
+        y2="37"
+        stroke="#b8a070"
+        strokeWidth="0.5"
+        opacity="0.3"
+      />
 
       {/* Label */}
       <rect x="26" y="152" width="48" height="62" rx="4" fill="url(#labelBg)" />
       {/* Label border */}
-      <rect x="26" y="152" width="48" height="62" rx="4" fill="none" stroke="#cbc2ea" strokeWidth="0.8" />
+      <rect
+        x="26"
+        y="152"
+        width="48"
+        height="62"
+        rx="4"
+        fill="none"
+        stroke="#cbc2ea"
+        strokeWidth="0.8"
+      />
       {/* Label inner frame */}
-      <rect x="30" y="157" width="40" height="52" rx="2" fill="none" stroke="#ddd0e8" strokeWidth="0.5" />
+      <rect
+        x="30"
+        y="157"
+        width="40"
+        height="52"
+        rx="2"
+        fill="none"
+        stroke="#ddd0e8"
+        strokeWidth="0.5"
+      />
 
       {/* Label text */}
-      <text x="50" y="175" textAnchor="middle" fontSize="5.5" fontFamily="Georgia, serif"
-        fill="#191a1b" fontWeight="300" letterSpacing="1.5">SPIN THE</text>
-      <text x="50" y="186" textAnchor="middle" fontSize="8.5" fontFamily="Georgia, serif"
-        fill="#191a1b" fontWeight="400" fontStyle="italic" letterSpacing="0.5">Bottle</text>
+      <text
+        x="50"
+        y="175"
+        textAnchor="middle"
+        fontSize="5.5"
+        fontFamily="Georgia, serif"
+        fill="#191a1b"
+        fontWeight="300"
+        letterSpacing="1.5"
+      >
+        SPIN THE
+      </text>
+      <text
+        x="50"
+        y="186"
+        textAnchor="middle"
+        fontSize="8.5"
+        fontFamily="Georgia, serif"
+        fill="#191a1b"
+        fontWeight="400"
+        fontStyle="italic"
+        letterSpacing="0.5"
+      >
+        Bottle
+      </text>
       {/* Decorative lime rule */}
-      <line x1="34" y1="191" x2="66" y2="191" stroke="#d4ff4c" strokeWidth="1.2" />
-      <text x="50" y="200" textAnchor="middle" fontSize="4.5" fontFamily="sans-serif"
-        fill="#5e5a5a" letterSpacing="1">PARTY EDITION</text>
+      <line
+        x1="34"
+        y1="191"
+        x2="66"
+        y2="191"
+        stroke="#d4ff4c"
+        strokeWidth="1.2"
+      />
+      <text
+        x="50"
+        y="200"
+        textAnchor="middle"
+        fontSize="4.5"
+        fontFamily="sans-serif"
+        fill="#5e5a5a"
+        letterSpacing="1"
+      >
+        PARTY EDITION
+      </text>
 
       {/* Liquid fill */}
       <path
@@ -166,22 +251,41 @@ function BottleSVG({
       <circle cx="48" cy="232" r="1" fill="rgba(255,255,255,0.08)" />
 
       {/* Glass sheen on body */}
-      <path d="M30 132 Q29 185 30 234" stroke="white" strokeWidth="4.5"
-        strokeLinecap="round" opacity="0.13" fill="none" />
-      <path d="M34 136 Q33 190 34 232" stroke="white" strokeWidth="2"
-        strokeLinecap="round" opacity="0.08" fill="none" />
+      <path
+        d="M30 132 Q29 185 30 234"
+        stroke="white"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+        opacity="0.13"
+        fill="none"
+      />
+      <path
+        d="M34 136 Q33 190 34 232"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        opacity="0.08"
+        fill="none"
+      />
 
       {/* Neck sheen */}
-      <path d="M38 40 Q37.5 65 38 96 L42 96 Q41.5 65 42 40 Z"
-        fill="url(#sheen)" />
+      <path
+        d="M38 40 Q37.5 65 38 96 L42 96 Q41.5 65 42 40 Z"
+        fill="url(#sheen)"
+      />
     </svg>
   );
 }
 
 /* ───────── Confetti ───────── */
 interface ConfettiPiece {
-  id: number; x: number; color: string; size: number;
-  delay: number; duration: number; shape: "rect" | "circle";
+  id: number;
+  x: number;
+  color: string;
+  size: number;
+  delay: number;
+  duration: number;
+  shape: "rect" | "circle";
 }
 
 function Confetti() {
@@ -194,11 +298,14 @@ function Confetti() {
       delay: Math.random() * 1.8,
       duration: 2.2 + Math.random() * 2,
       shape: Math.random() > 0.5 ? "rect" : "circle",
-    }))
+    })),
   ).current;
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden z-50">
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 overflow-hidden z-50"
+    >
       {pieces.map((p) => (
         <div
           key={p.id}
@@ -224,7 +331,11 @@ function Confetti() {
 
 /* ───────── PlayerCard ───────── */
 function PlayerCard({
-  player, onRemove, isSelected, isSpinner, rank,
+  player,
+  onRemove,
+  isSelected,
+  isSpinner,
+  rank,
 }: {
   player: Player;
   onRemove: (id: string) => void;
@@ -237,11 +348,7 @@ function PlayerCard({
       role="listitem"
       className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-white transition-all duration-250 group"
       style={{
-        borderColor: isSelected
-          ? "#4c305a"
-          : isSpinner
-            ? "#cbc2ea"
-            : "#cbd5e0",
+        borderColor: isSelected ? "#4c305a" : isSpinner ? "#cbc2ea" : "#cbd5e0",
         boxShadow: isSelected
           ? "rgba(94,90,90,0.1) 0px 0px 0px 1px, rgba(76,48,90,0.12) 0px 4px 16px -4px"
           : "rgba(0,0,0,0.05) 0px 1px 2px 0px",
@@ -256,7 +363,10 @@ function PlayerCard({
       {/* Avatar */}
       <Avatar
         className="size-8 shrink-0"
-        style={{ outline: `2px solid ${player.accentColor}`, outlineOffset: "1px" }}
+        style={{
+          outline: `2px solid ${player.accentColor}`,
+          outlineOffset: "1px",
+        }}
       >
         <AvatarFallback
           className="text-[10px] font-semibold"
@@ -312,7 +422,10 @@ function PlayerCard({
 
 /* ───────── PlayerRing ───────── */
 function PlayerRing({
-  players, selectedIdx, spinnerIdx, radius,
+  players,
+  selectedIdx,
+  spinnerIdx,
+  radius,
 }: {
   players: Player[];
   selectedIdx: number | null;
@@ -325,12 +438,12 @@ function PlayerRing({
     <>
       {players.map((p, i) => {
         const angle = (i / players.length) * 360 - 90;
-        const rad   = (angle * Math.PI) / 180;
-        const cx    = 50 + radius * Math.cos(rad);
-        const cy    = 50 + radius * Math.sin(rad);
+        const rad = (angle * Math.PI) / 180;
+        const cx = 50 + radius * Math.cos(rad);
+        const cy = 50 + radius * Math.sin(rad);
 
         const isSelected = selectedIdx === i;
-        const isSpinner  = spinnerIdx === i;
+        const isSpinner = spinnerIdx === i;
 
         return (
           <div
@@ -339,7 +452,7 @@ function PlayerRing({
             className="absolute flex flex-col items-center transition-all duration-500"
             style={{
               left: `${cx}%`,
-              top:  `${cy}%`,
+              top: `${cy}%`,
               transform: "translate(-50%,-50%)",
               zIndex: isSelected ? 10 : 1,
             }}
@@ -366,14 +479,18 @@ function PlayerRing({
                   : isSpinner
                     ? `0 0 0 2px #cbc2ea`
                     : `rgba(0,0,0,0.1) 0px 2px 8px -2px`,
-                transform: isSelected ? "scale(1.25)" : isSpinner ? "scale(1.08)" : "scale(1)",
+                transform: isSelected
+                  ? "scale(1.25)"
+                  : isSpinner
+                    ? "scale(1.08)"
+                    : "scale(1)",
               }}
             >
               {getInitials(p.name)}
             </div>
 
             <span
-              className="mt-1 text-[9px] font-medium max-w-[56px] text-center leading-tight"
+              className="mt-1 text-[9px] font-medium max-w-14 text-center leading-tight"
               style={{
                 color: isSelected ? "#4c305a" : "#beb9b3",
                 fontWeight: isSelected ? "600" : "400",
@@ -390,11 +507,14 @@ function PlayerRing({
 
 /* ───────── ResultDialog ───────── */
 function ResultDialog({
-  open, spinner, target, onClose,
+  open,
+  spinner,
+  target,
+  onClose,
 }: {
   open: boolean;
   spinner: Player | null;
-  target:  Player | null;
+  target: Player | null;
   onClose: () => void;
 }) {
   return (
@@ -403,7 +523,8 @@ function ResultDialog({
         className="max-w-sm border-0 p-0 overflow-hidden"
         style={{
           background: "#ffffff",
-          boxShadow: "rgba(94,90,90,0.1) 0px 0px 0px 1px, rgba(76,48,90,0.18) 0px 24px 64px -12px",
+          boxShadow:
+            "rgba(94,90,90,0.1) 0px 0px 0px 1px, rgba(76,48,90,0.18) 0px 24px 64px -12px",
         }}
         aria-live="polite"
       >
@@ -411,7 +532,8 @@ function ResultDialog({
         <div
           className="h-1.5 w-full"
           style={{
-            background: "linear-gradient(to right in oklab, #fdf1ef, #cbc2ea, #f5ddee)",
+            background:
+              "linear-gradient(to right in oklab, #fdf1ef, #cbc2ea, #f5ddee)",
           }}
         />
 
@@ -471,7 +593,11 @@ function ResultDialog({
               boxShadow: "rgba(0,0,0,0.05) 0px 1px 2px 0px",
             }}
           >
-            <RotateCcw size={14} aria-hidden="true" className="mr-2 opacity-70" />
+            <RotateCcw
+              size={14}
+              aria-hidden="true"
+              className="mr-2 opacity-70"
+            />
             Spin Again
           </Button>
         </div>
@@ -483,30 +609,32 @@ function ResultDialog({
 /* ───────── Main ───────── */
 export default function SpinTheBottle() {
   const [players, setPlayers] = useState<Player[]>([
-    { id: "1", name: "Alice",   ...PLAYER_PALETTE[0], spins: 0 },
-    { id: "2", name: "Bob",     ...PLAYER_PALETTE[1], spins: 0 },
+    { id: "1", name: "Alice", ...PLAYER_PALETTE[0], spins: 0 },
+    { id: "2", name: "Bob", ...PLAYER_PALETTE[1], spins: 0 },
     { id: "3", name: "Charlie", ...PLAYER_PALETTE[2], spins: 0 },
   ]);
-  const [newName,       setNewName]       = useState("");
-  const [isSpinning,    setIsSpinning]    = useState(false);
-  const [bottleRot,     setBottleRot]     = useState(0);
-  const [selectedIdx,   setSelectedIdx]   = useState<number | null>(null);
-  const [spinnerIdx,    setSpinnerIdx]    = useState<number | null>(null);
-  const [showResult,    setShowResult]    = useState(false);
-  const [showConfetti,  setShowConfetti]  = useState(false);
-  const [statusMsg,     setStatusMsg]     = useState("Press Spin to begin");
+  const [newName, setNewName] = useState("");
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [bottleRot, setBottleRot] = useState(0);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [spinnerIdx, setSpinnerIdx] = useState<number | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("Press Spin to begin");
 
-  const inputId      = useId();
-  const spinnerRef   = useRef<number>(0);
-  const totalRot     = useRef(0);
+  const inputId = useId();
+  const spinnerRef = useRef<number>(0);
+  const totalRot = useRef(0);
   const reducedMotion = useRef(
     typeof window !== "undefined"
       ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      : false
+      : false,
   );
 
   const pickTarget = useCallback((sIdx: number, count: number) => {
-    const pool = Array.from({ length: count }, (_, i) => i).filter((i) => i !== sIdx);
+    const pool = Array.from({ length: count }, (_, i) => i).filter(
+      (i) => i !== sIdx,
+    );
     return pool[Math.floor(Math.random() * pool.length)];
   }, []);
 
@@ -548,10 +676,11 @@ export default function SpinTheBottle() {
     const targetAngle = (tIdx / players.length) * 360;
     // How many degrees to rotate FROM the current rest position to reach target
     // Use `|| 360` so we still spin a full turn when already aimed at target
-    const deltaToTarget = (((targetAngle - currentAngleMod) % 360) + 360) % 360 || 360;
-    const extraSpins  = 4 + Math.floor(Math.random() * 4);
-    const finalAngle  = totalRot.current + extraSpins * 360 + deltaToTarget;
-    const duration    = reducedMotion.current ? 80 : 3200 + Math.random() * 1400;
+    const deltaToTarget =
+      (((targetAngle - currentAngleMod) % 360) + 360) % 360 || 360;
+    const extraSpins = 4 + Math.floor(Math.random() * 4);
+    const finalAngle = totalRot.current + extraSpins * 360 + deltaToTarget;
+    const duration = reducedMotion.current ? 80 : 3200 + Math.random() * 1400;
 
     setIsSpinning(true);
 
@@ -560,7 +689,9 @@ export default function SpinTheBottle() {
       setBottleRot(finalAngle);
       setIsSpinning(false);
       setSelectedIdx(tIdx);
-      setPlayers((prev) => prev.map((p, i) => i === sIdx ? { ...p, spins: p.spins + 1 } : p));
+      setPlayers((prev) =>
+        prev.map((p, i) => (i === sIdx ? { ...p, spins: p.spins + 1 } : p)),
+      );
       setStatusMsg(`${players[tIdx]?.name ?? "Someone"} was chosen!`);
       setShowResult(true);
       setShowConfetti(true);
@@ -568,13 +699,13 @@ export default function SpinTheBottle() {
     }
 
     const start = performance.now();
-    const from  = totalRot.current;
-    const diff  = finalAngle - from;
+    const from = totalRot.current;
+    const diff = finalAngle - from;
 
     const ease = (t: number) => 1 - Math.pow(1 - t, 4.5); // aggressive ease-out
 
     function frame(now: number) {
-      const elapsed  = now - start;
+      const elapsed = now - start;
       const progress = Math.min(elapsed / duration, 1);
       setBottleRot(from + diff * ease(progress));
 
@@ -586,10 +717,13 @@ export default function SpinTheBottle() {
         setIsSpinning(false);
         setSelectedIdx(tIdx);
         setPlayers((prev) =>
-          prev.map((p, i) => i === sIdx ? { ...p, spins: p.spins + 1 } : p)
+          prev.map((p, i) => (i === sIdx ? { ...p, spins: p.spins + 1 } : p)),
         );
         setStatusMsg(`${players[tIdx]?.name ?? "Someone"} was chosen!`);
-        setTimeout(() => { setShowResult(true); setShowConfetti(true); }, 380);
+        setTimeout(() => {
+          setShowResult(true);
+          setShowConfetti(true);
+        }, 380);
       }
     }
 
@@ -597,10 +731,10 @@ export default function SpinTheBottle() {
   }, [isSpinning, players, pickTarget]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
+    (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") addPlayer();
     },
-    [addPlayer]
+    [addPlayer],
   );
 
   useEffect(() => {
@@ -630,7 +764,8 @@ export default function SpinTheBottle() {
         aria-hidden="true"
         className="absolute inset-x-0 top-0 h-72 pointer-events-none"
         style={{
-          background: "linear-gradient(to bottom in oklab, #fdf1ef 0%, rgba(245,221,238,0.4) 60%, transparent 100%)",
+          background:
+            "linear-gradient(to bottom in oklab, #fdf1ef 0%, rgba(245,221,238,0.4) 60%, transparent 100%)",
         }}
       />
 
@@ -639,7 +774,8 @@ export default function SpinTheBottle() {
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: "linear-gradient(233deg, rgba(50,197,255,0.04), rgba(182,32,224,0.04) 51%, rgba(247,181,0,0.04))",
+          background:
+            "linear-gradient(233deg, rgba(50,197,255,0.04), rgba(182,32,224,0.04) 51%, rgba(247,181,0,0.04))",
         }}
       />
 
@@ -682,14 +818,18 @@ export default function SpinTheBottle() {
 
       {/* ─── Main layout ─── */}
       <div className="relative z-10 flex-1 flex flex-col lg:flex-row gap-5 px-4 pb-10 max-w-5xl mx-auto w-full">
-
         {/* ═══ Left sidebar: Player management ═══ */}
-        <aside className="lg:w-64 xl:w-72 flex flex-col gap-3" aria-label="Player management">
-
+        <aside
+          className="lg:w-64 xl:w-72 flex flex-col gap-3"
+          aria-label="Player management"
+        >
           {/* Add player */}
           <section
             className="rounded-xl p-4 bg-white border"
-            style={{ borderColor: "#cbd5e0", boxShadow: "rgba(0,0,0,0.05) 0px 1px 2px 0px" }}
+            style={{
+              borderColor: "#cbd5e0",
+              boxShadow: "rgba(0,0,0,0.05) 0px 1px 2px 0px",
+            }}
             aria-label="Add a player"
           >
             <div className="flex items-center gap-2 mb-3">
@@ -701,7 +841,9 @@ export default function SpinTheBottle() {
 
             <div className="flex gap-2">
               <div className="flex-1">
-                <Label htmlFor={inputId} className="sr-only">Player name</Label>
+                <Label htmlFor={inputId} className="sr-only">
+                  Player name
+                </Label>
                 <Input
                   id={inputId}
                   type="text"
@@ -735,8 +877,13 @@ export default function SpinTheBottle() {
             </div>
 
             {players.length < MIN_PLAYERS && (
-              <p className="text-xs mt-2 font-light text-[#beb9b3]" role="status" aria-live="polite">
-                Need {MIN_PLAYERS - players.length} more player{MIN_PLAYERS - players.length !== 1 ? "s" : ""} to play.
+              <p
+                className="text-xs mt-2 font-light text-[#beb9b3]"
+                role="status"
+                aria-live="polite"
+              >
+                Need {MIN_PLAYERS - players.length} more player
+                {MIN_PLAYERS - players.length !== 1 ? "s" : ""} to play.
               </p>
             )}
           </section>
@@ -744,7 +891,10 @@ export default function SpinTheBottle() {
           {/* Player list */}
           <section
             className="rounded-xl p-3 bg-white border flex-1"
-            style={{ borderColor: "#cbd5e0", boxShadow: "rgba(0,0,0,0.05) 0px 1px 2px 0px" }}
+            style={{
+              borderColor: "#cbd5e0",
+              boxShadow: "rgba(0,0,0,0.05) 0px 1px 2px 0px",
+            }}
             aria-label="Player list"
           >
             <div role="list" className="flex flex-col gap-1.5">
@@ -771,7 +921,10 @@ export default function SpinTheBottle() {
           {players.some((p) => p.spins > 0) && (
             <section
               className="rounded-xl p-3 bg-white border"
-              style={{ borderColor: "#cbd5e0", boxShadow: "rgba(0,0,0,0.05) 0px 1px 2px 0px" }}
+              style={{
+                borderColor: "#cbd5e0",
+                boxShadow: "rgba(0,0,0,0.05) 0px 1px 2px 0px",
+              }}
               aria-label="Spin statistics"
             >
               <h3 className="text-xs font-medium uppercase tracking-widest text-[#beb9b3] mb-2">
@@ -781,16 +934,23 @@ export default function SpinTheBottle() {
                 {[...players]
                   .sort((a, b) => b.spins - a.spins)
                   .map((p) => (
-                    <div key={p.id} className="flex items-center justify-between text-xs">
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between text-xs"
+                    >
                       <div className="flex items-center gap-2">
                         <div
                           className="size-2 rounded-full"
                           style={{ background: p.color }}
                           aria-hidden="true"
                         />
-                        <span className="font-light text-[#5e5a5a]">{p.name}</span>
+                        <span className="font-light text-[#5e5a5a]">
+                          {p.name}
+                        </span>
                       </div>
-                      <span className="font-mono text-[#beb9b3]">{p.spins}</span>
+                      <span className="font-mono text-[#beb9b3]">
+                        {p.spins}
+                      </span>
                     </div>
                   ))}
               </div>
@@ -808,7 +968,8 @@ export default function SpinTheBottle() {
             className="relative w-full rounded-2xl bg-white border flex flex-col items-center justify-center"
             style={{
               borderColor: "#cbd5e0",
-              boxShadow: "rgba(94,90,90,0.1) 0px 0px 0px 1px, rgba(0,0,0,0.07) 0px 16px 40px -8px",
+              boxShadow:
+                "rgba(94,90,90,0.1) 0px 0px 0px 1px, rgba(0,0,0,0.07) 0px 16px 40px -8px",
               minHeight: "400px",
               overflow: "hidden",
             }}
@@ -818,7 +979,8 @@ export default function SpinTheBottle() {
               aria-hidden="true"
               className="absolute inset-0 pointer-events-none"
               style={{
-                background: "radial-gradient(ellipse at 50% 0%, rgba(253,241,239,0.7) 0%, transparent 65%)",
+                background:
+                  "radial-gradient(ellipse at 50% 0%, rgba(253,241,239,0.7) 0%, transparent 65%)",
               }}
             />
 
@@ -849,7 +1011,9 @@ export default function SpinTheBottle() {
                 <PlayerRing
                   players={players}
                   selectedIdx={selectedIdx}
-                  spinnerIdx={spinnerIdx !== null && isSpinning ? spinnerIdx : null}
+                  spinnerIdx={
+                    spinnerIdx !== null && isSpinning ? spinnerIdx : null
+                  }
                   radius={37}
                 />
               </div>
@@ -905,7 +1069,10 @@ export default function SpinTheBottle() {
           {/* Ghost secondary label */}
           {canSpin && (
             <p className="text-xs font-light text-[#beb9b3] -mt-3 fade-in-up">
-              {players.length} players · {players.filter(p => p.spins > 0).length > 0 ? `${players.reduce((a, p) => a + p.spins, 0)} total spins` : "First spin!"}
+              {players.length} players ·{" "}
+              {players.filter((p) => p.spins > 0).length > 0
+                ? `${players.reduce((a, p) => a + p.spins, 0)} total spins`
+                : "First spin!"}
             </p>
           )}
         </section>
@@ -917,14 +1084,13 @@ export default function SpinTheBottle() {
       {/* Result dialog */}
       <ResultDialog
         open={showResult}
-        spinner={spinnerIdx !== null ? players[spinnerIdx] ?? null : null}
-        target={selectedIdx !== null ? players[selectedIdx] ?? null : null}
+        spinner={spinnerIdx !== null ? (players[spinnerIdx] ?? null) : null}
+        target={selectedIdx !== null ? (players[selectedIdx] ?? null) : null}
         onClose={() => {
           setShowResult(false);
           setSelectedIdx(null);
           setSpinnerIdx(null);
           setStatusMsg("Press Spin to begin");
-          spinnerRef.current = (spinnerRef.current + 1) % Math.max(players.length, 1);
         }}
       />
     </main>
