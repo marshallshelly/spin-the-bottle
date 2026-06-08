@@ -1,4 +1,4 @@
-"use client";
+import ReactConfetti from "react-confetti";
 
 import {
   useState,
@@ -12,6 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import {
   Dialog,
   DialogContent,
@@ -43,14 +52,14 @@ const PLAYER_PALETTE: { color: string; accentColor: string }[] = [
 ];
 
 const CONFETTI_COLORS = [
-  "#d4ff4c",
-  "#cbc2ea",
-  "#f5ddee",
-  "#d7e5fe",
-  "#beb9b3",
-  "#4c305a",
-  "#191a1b",
-  "#fdf1ef",
+  "#d4ff4c", // electric lime
+  "#cbc2ea", // lavender whisper
+  "#f5ddee", // blossom
+  "#d7e5fe", // lilac mist
+  "#fdf1ef", // warm shell
+  "#a78bfa", // soft violet
+  "#fb923c", // warm orange
+  "#4c305a", // plum (used sparingly — only 1 dark)
 ];
 
 const MIN_PLAYERS = 2;
@@ -277,58 +286,6 @@ function BottleSVG({
   );
 }
 
-/* ───────── Confetti ───────── */
-interface ConfettiPiece {
-  id: number;
-  x: number;
-  color: string;
-  size: number;
-  delay: number;
-  duration: number;
-  shape: "rect" | "circle";
-}
-
-function Confetti() {
-  const pieces = useRef<ConfettiPiece[]>(
-    Array.from({ length: 48 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-      size: 5 + Math.random() * 9,
-      delay: Math.random() * 1.8,
-      duration: 2.2 + Math.random() * 2,
-      shape: Math.random() > 0.5 ? "rect" : "circle",
-    })),
-  ).current;
-
-  return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 overflow-hidden z-50"
-    >
-      {pieces.map((p) => (
-        <div
-          key={p.id}
-          style={{
-            position: "absolute",
-            left: `${p.x}%`,
-            top: "-20px",
-            width: `${p.size}px`,
-            height: p.shape === "rect" ? `${p.size * 0.45}px` : `${p.size}px`,
-            background: p.color,
-            borderRadius: p.shape === "circle" ? "50%" : "2px",
-            animationName: "confetti-fall",
-            animationDuration: `${p.duration}s`,
-            animationDelay: `${p.delay}s`,
-            animationTimingFunction: "linear",
-            animationFillMode: "forwards",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 /* ───────── PlayerCard ───────── */
 function PlayerCard({
   player,
@@ -344,79 +301,75 @@ function PlayerCard({
   rank: number;
 }) {
   return (
-    <div
-      role="listitem"
-      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-white transition-all duration-250 group"
+    <Item
+      size="sm"
+      variant="outline"
+      className="transition-all duration-200"
       style={{
         borderColor: isSelected ? "#4c305a" : isSpinner ? "#cbc2ea" : "#cbd5e0",
         boxShadow: isSelected
           ? "rgba(94,90,90,0.1) 0px 0px 0px 1px, rgba(76,48,90,0.12) 0px 4px 16px -4px"
           : "rgba(0,0,0,0.05) 0px 1px 2px 0px",
         transform: isSelected ? "scale(1.015)" : "scale(1)",
+        background: "white",
       }}
     >
       {/* Rank */}
-      <span className="text-xs font-mono w-5 text-center shrink-0 text-[#beb9b3]">
+      <span className="text-xs font-mono w-4 text-center shrink-0 text-[#beb9b3]">
         {rank}
       </span>
 
       {/* Avatar */}
-      <Avatar
-        className="size-8 shrink-0"
-        style={{
-          outline: `2px solid ${player.accentColor}`,
-          outlineOffset: "1px",
-        }}
-      >
-        <AvatarFallback
-          className="text-[10px] font-semibold"
-          style={{ background: player.color, color: "#d4ff4c" }}
+      <ItemMedia>
+        <Avatar
+          className="size-7"
+          style={{ outline: `2px solid ${player.accentColor}`, outlineOffset: "1px" }}
         >
-          {getInitials(player.name)}
-        </AvatarFallback>
-      </Avatar>
+          <AvatarFallback
+            className="text-[10px] font-semibold"
+            style={{ background: player.color, color: "#d4ff4c" }}
+          >
+            {getInitials(player.name)}
+          </AvatarFallback>
+        </Avatar>
+      </ItemMedia>
 
-      {/* Name */}
-      <span className="flex-1 text-sm font-light truncate min-w-0 text-[#191a1b]">
-        {player.name}
-      </span>
+      {/* Name + status */}
+      <ItemContent>
+        <ItemTitle className="text-xs font-light text-[#191a1b]">
+          {player.name}
+        </ItemTitle>
+        {(isSelected || isSpinner) && (
+          <ItemDescription className="text-[10px]">
+            {isSelected ? "Chosen this round" : "Currently spinning…"}
+          </ItemDescription>
+        )}
+      </ItemContent>
 
-      {/* Status badges */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* Spins count + remove */}
+      <ItemActions>
+        {player.spins > 0 && (
+          <span className="text-[10px] font-mono text-[#beb9b3]">×{player.spins}</span>
+        )}
         {isSelected && (
           <span
-            className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
             style={{ background: "#191a1b", color: "#d4ff4c" }}
             role="status"
           >
             Chosen
           </span>
         )}
-        {isSpinner && (
-          <span
-            className="text-[10px] font-medium px-2 py-0.5 rounded-full border"
-            style={{ borderColor: "#cbc2ea", color: "#5e5a5a" }}
-          >
-            Spinning
-          </span>
-        )}
-        {player.spins > 0 && (
-          <span className="text-[10px] font-mono text-[#beb9b3]">
-            ×{player.spins}
-          </span>
-        )}
-      </div>
-
-      {/* Remove */}
-      <button
-        type="button"
-        aria-label={`Remove ${player.name}`}
-        onClick={() => onRemove(player.id)}
-        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 rounded-md hover:bg-[#fdf1ef] focus-visible:ring-2 focus-visible:ring-[#cbc2ea] text-[#beb9b3] hover:text-[#5e5a5a]"
-      >
-        <Trash2 size={13} aria-hidden="true" />
-      </button>
-    </div>
+        <button
+          type="button"
+          aria-label={`Remove ${player.name}`}
+          onClick={() => onRemove(player.id)}
+          className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 transition-opacity p-1 rounded-md hover:bg-[#fdf1ef] focus-visible:ring-2 focus-visible:ring-[#cbc2ea] text-[#beb9b3] hover:text-[#5e5a5a]"
+        >
+          <Trash2 size={12} aria-hidden="true" />
+        </button>
+      </ItemActions>
+    </Item>
   );
 }
 
@@ -897,7 +850,7 @@ export default function SpinTheBottle() {
             }}
             aria-label="Player list"
           >
-            <div role="list" className="flex flex-col gap-1.5">
+            <ItemGroup>
               {players.length === 0 ? (
                 <p className="text-sm font-light text-center py-5 text-[#beb9b3]">
                   No players yet.
@@ -914,7 +867,7 @@ export default function SpinTheBottle() {
                   />
                 ))
               )}
-            </div>
+            </ItemGroup>
           </section>
 
           {/* Spin stats */}
@@ -1079,7 +1032,24 @@ export default function SpinTheBottle() {
       </div>
 
       {/* Confetti */}
-      {showConfetti && <Confetti />}
+      {showConfetti && (
+        <ReactConfetti
+          aria-hidden="true"
+          colors={CONFETTI_COLORS}
+          numberOfPieces={220}
+          recycle={false}
+          gravity={0.18}
+          initialVelocityY={12}
+          tweenDuration={5000}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            zIndex: 9999,
+            pointerEvents: "none",
+          }}
+        />
+      )}
 
       {/* Result dialog */}
       <ResultDialog
